@@ -1,0 +1,7 @@
+runtime: go112
+
+env: standard
+instance_class: F1
+handlers:
+  - url: '/dns-check/.*'
+    script: auto
