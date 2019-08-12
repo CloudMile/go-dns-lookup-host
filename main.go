@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
-
-	"github.com/rs/dnscache"
+	"time"
 )
 
 // Times is default dig times
@@ -34,16 +33,18 @@ func dnsCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h := map[string]int{}
-	var c = make(chan map[int][]string, times)
+	var c = make(chan map[int][]net.IP, times)
 
 	for i := 0; i < times; i++ {
 		go dig(url, i, c)
+		time.Sleep(10 * time.Microsecond)
 	}
 
 	for i := 0; i < times; i++ {
 		item := <-c
 		for _, date := range item {
-			for _, v := range date {
+			for _, ip := range date {
+				v := ip.String()
 				if h[v] == 0 {
 					h[v] = 1
 				} else {
@@ -59,12 +60,9 @@ func dnsCheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func dig(url string, i int, c chan map[int][]string) {
-	resolver := &dnscache.Resolver{}
-	ctx := context.Background()
-	addr, _ := resolver.LookupHost(ctx, url)
-	resolver.Refresh(true)
-	mapString := make(map[int][]string)
-	mapString[i] = addr
+func dig(url string, i int, c chan map[int][]net.IP) {
+	ips, _ := net.LookupIP(url)
+	mapString := make(map[int][]net.IP)
+	mapString[i] = ips
 	c <- mapString
 }
