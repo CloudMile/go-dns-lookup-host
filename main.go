@@ -3,15 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 // Times is default dig times
-const Times = 1000
+const Times = 100
+
+var server = os.Getenv("DNS_SERVER")
 
 func main() {
 	http.HandleFunc("/dns-check", dnsCheck)
@@ -29,11 +32,13 @@ func dnsCheck(w http.ResponseWriter, r *http.Request) {
 	url := r.URL.Query().Get("url")
 	times := Times
 	if newTimes, err := strconv.Atoi(r.URL.Query().Get("times")); err == nil {
-		times = newTimes
+		if newTimes < Times {
+			times = newTimes
+		}
 	}
 
 	h := map[string]int{}
-	var c = make(chan map[int][]net.IP, times)
+	var c = make(chan map[int][]dns.RR, times)
 
 	for i := 0; i < times; i++ {
 		go dig(url, i, c)
@@ -41,10 +46,14 @@ func dnsCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := 0; i < times; i++ {
-		item := <-c
-		for _, date := range item {
-			for _, ip := range date {
-				v := ip.String()
+		channel := <-c
+		for _, dnsRRs := range channel {
+			for _, dnsRR := range dnsRRs {
+				arecord, err := dnsRR.(*dns.A)
+				if err == false {
+					continue
+				}
+				v := arecord.A.String()
 				if h[v] == 0 {
 					h[v] = 1
 				} else {
@@ -60,9 +69,15 @@ func dnsCheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func dig(url string, i int, c chan map[int][]net.IP) {
-	ips, _ := net.LookupIP(url)
-	mapString := make(map[int][]net.IP)
-	mapString[i] = ips
+func dig(url string, i int, c chan map[int][]dns.RR) {
+	client := new(dns.Client)
+	m := new(dns.Msg)
+	m.SetQuestion(url+".", dns.TypeA)
+	r, _, err := client.Exchange(m, server+":53")
+	if err != nil {
+		log.Fatal(err)
+	}
+	mapString := make(map[int][]dns.RR)
+	mapString[i] = r.Answer
 	c <- mapString
 }
