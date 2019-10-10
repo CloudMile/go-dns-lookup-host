@@ -1,17 +1,17 @@
 # NSlookup URL on GAE wiht GCP Internal DNS Server
 dig with `169.254.169.254`
 
-## Deplay
+## Deploy
 ```
 $ gcloud app deploy app.yaml
 ```
 
-## Using
+## Usage
 ```
 $ curl https://<GAE_URL>/dns-check?url=<URL>
 ```
 
-ex:
+Example:
 ```
 $ curl "https://<GCP_PROJECT_ID>.appspot.com/dns-check?url=speech.googleapis.com"
 URL: speech.googleapis.com
